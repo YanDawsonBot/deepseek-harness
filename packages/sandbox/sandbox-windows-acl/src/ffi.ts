@@ -133,6 +133,19 @@ export interface Win32Bindings {
   // runner can clean up grants after the child exits.
   setConsoleCtrlHandler(handler: null, add: number): number
   getStdHandle(stdHandle: number): NativePtr
+  // Console hiding for the runner. The confined child cannot be isolated with
+  // CREATE_NO_WINDOW / CREATE_NEW_CONSOLE under the restricted token (it dies
+  // with STATUS_DLL_INIT_FAILED), so it attaches to the runner's console
+  // instead. When the harness runs windowless (e.g. PM2 windowsHide), the
+  // subprocess spawner mints a NEW VISIBLE console for the runner (no
+  // windowsHide), so the user would see a black window per confined command.
+  // The runner hides its console when it is the ONLY process attached to it
+  // (GetConsoleProcessList == 1): such a console was minted for the runner,
+  // never inherited from a real terminal.
+  getConsoleWindow(): NativePtr
+  getConsoleProcessList(processIds: NativePtr, capacity: number): number
+  showWindow(window: NativePtr, command: number): number
+  allocConsole(): number
 }
 
 const PVOID: Ptr = koffi.pointer('void')
@@ -374,6 +387,7 @@ function bindings(): Win32Bindings {
   if (cached !== undefined) return cached
   const kernel32 = koffi.load('kernel32.dll')
   const advapi32 = koffi.load('advapi32.dll')
+  const user32 = koffi.load('user32.dll')
 
   // Each binding shape is verified by verify/abi-probe.cpp against the real
   // Windows headers and exercised end-to-end by tests/probe.spec.ts; the
@@ -427,6 +441,17 @@ function bindings(): Win32Bindings {
     terminateProcess: bind(kernel32, 'TerminateProcess', 'int', [PVOID, 'uint32']),
     setConsoleCtrlHandler: bind(kernel32, 'SetConsoleCtrlHandler', 'int', [PVOID, 'int']),
     getStdHandle: bind(kernel32, 'GetStdHandle', PVOID, ['int']),
+    // wincon.h line ~175: HWND WINAPI GetConsoleWindow(void); NULL when this
+    // process has no console. wincon.h: DWORD WINAPI GetConsoleProcessList
+    // (LPDWORD, DWORD) — processes attached to the current console; a count
+    // of 1 means the console was minted for this process alone. winbase.h
+    // line ~1780: BOOL WINAPI AllocConsole(void) — best-effort fallback only.
+    getConsoleWindow: bind(kernel32, 'GetConsoleWindow', PVOID, []),
+    getConsoleProcessList: bind(kernel32, 'GetConsoleProcessList', 'uint32', [PVOID, 'uint32']),
+    allocConsole: bind(kernel32, 'AllocConsole', 'int', []),
+    // winuser.h: BOOL WINAPI ShowWindow(HWND, int); SW_HIDE (0) hides the
+    // console window the runner hid so the user never sees it.
+    showWindow: bind(user32, 'ShowWindow', 'int', [PVOID, 'int']),
   } as unknown as Win32Bindings
   return cached
 }

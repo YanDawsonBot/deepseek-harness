@@ -238,6 +238,11 @@ export class PwshLocalExecutor extends ShellExecutor {
       graceMs: this.config.graceMs,
       signal,
       env: { ...ENV_OVERRIDES, ...spec.env, ...spec.dshEnv },
+      // Full-access spawns bypass the sandbox runner (whose own minted-console
+      // hide covers the confined path), so spawn pwsh windowless
+      // (CREATE_NO_WINDOW): a windowless harness would otherwise mint a
+      // visible console for the direct child on every call.
+      ...spec.sandboxPolicy?.mode === 'danger-full-access' ? { windowsHide: true } : {},
     }
   }
 

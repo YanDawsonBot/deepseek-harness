@@ -5,6 +5,14 @@
  * wrapped argv under it with the CALLER'S stdio inherited (bytes flow
  * straight through), mirrors the child's exit code, and revokes its temp
  * grant on exit (workspace ACEs stay standing as the reuse cache).
+ * When the runner starts as the ONLY process on its console
+ * (GetConsoleProcessList == 1) it hides the console window (ShowWindow
+ * SW_HIDE): the confined child cannot be console-isolated under the
+ * restricted token and attaches to the runner's console, so a console that
+ * Windows minted for the runner (windowless harness, no windowsHide on the
+ * spawn) would otherwise be a visible black window on every confined
+ * command. A console shared with other processes (inherited from a real
+ * terminal) is left visible.
  *
  * Stable argv contract (the seam builds it; a native-exe replacement would
  * keep the same contract):
@@ -47,7 +55,8 @@
 import { existsSync, mkdtempSync, rmSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { win32 } from './ffi.ts'
+import { allocBytes, isNullPtr, win32 } from './ffi.ts'
+import * as abi from './win32-abi.ts'
 import { AclSandbox, assertTempRootOutsideWorkspace } from './index.ts'
 import { tempWriteSid, workspaceWriteSid } from './workspace-sid.ts'
 
@@ -131,6 +140,36 @@ async function main(): Promise<number> {
   }
 
   const api = await win32()
+  // The confined child spawns WITHOUT console isolation — the ACL-restricted
+  // token cannot survive CREATE_NO_WINDOW / CREATE_NEW_CONSOLE (children die
+  // with STATUS_DLL_INIT_FAILED, see win32-abi.ts), so the child attaches to
+  // THIS process's console instead. When the harness runs windowless (e.g.
+  // PM2's windowsHide), spawning this runner mints a brand-new VISIBLE
+  // console for it (the subprocess spawner sets no windowsHide), so the user
+  // would see a black window per confined command. If we are the ONLY process
+  // attached to this console (GetConsoleProcessList == 1), the console was
+  // minted for us — hide it so confined children attach to an invisible
+  // console. A shared console (inherited from a real terminal) stays visible.
+  const consoleWindow = api.getConsoleWindow()
+  if (!isNullPtr(consoleWindow)) {
+    const processIds = allocBytes(abi.CONSOLE_PROCESS_LIST_CAPACITY * 4)
+    const attached = api.getConsoleProcessList(processIds, abi.CONSOLE_PROCESS_LIST_CAPACITY)
+    if (attached === 1) {
+      api.showWindow(consoleWindow, abi.SW_HIDE)
+    }
+  } else {
+    // Defensive: a genuinely console-less runner (a spawn path that does use
+    // windowsHide) would make Windows mint a visible console for the child.
+    // Allocate a hidden one — best-effort: AllocConsole can fail with
+    // ERROR_ACCESS_DENIED in restricted contexts, in which case warn on
+    // stderr and let the child fall back to a visible console rather than
+    // fail the command.
+    if (api.allocConsole() !== 0) {
+      api.showWindow(api.getConsoleWindow(), abi.SW_HIDE)
+    } else {
+      process.stderr.write(`${RUNNER_SIGNATURE}: warning: no console and AllocConsole failed (Win32 ${api.getLastError()}); the confined child may show a console window\n`)
+    }
+  }
   // Ignore this process's own CTRL+C: the confined child (same console) keeps
   // handling its own; the runner must survive to revoke grants and mirror the
   // child's exit code.

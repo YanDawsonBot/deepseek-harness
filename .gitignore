@@ -1,41 +1,21 @@
-CLAUDE.local.md
-.env
+# 敏感文件 - 永不提交（含 API key）
+ecosystem.config.cjs
+ecosystem.config.js
+
+# 运行时日志
+logs/
+
+# 本地插件（独立管理，单独仓库）
+clawchat-plugin-dsh/
+
+# node
 node_modules/
+
+# 构建产物
 lib/
+dist/
 *.tsbuildinfo
-pnpm-debug.log
-.pnpm-store/
-.cache/
-examples/*/*.jsonl
-.storages/
-.sessions/
-examples/*/.sessions/
-coverage/
-.doc-typecheck-*/
-.node-next-types-*/
-.oxlint-contract-*/
-.oxlintrc.contract-*.json
-oxlint-contract-*.ts
-.humanize/
-tmp/
-.claude/commands/
-.claude/launch.json
-.claude/settings.json
-.vscode/
-.DS_Store
-.idea
-mise.toml
-dist-exe/
-python/sdk-runtime/src/deepseek_harness_runtime/runtime/dsh-jsonrpc-agent-*
-python/sdk-runtime/src/deepseek_harness_runtime/runtime/node/
-python/**/__pycache__/
-python/**/.pytest_cache/
-apps/web/dist/
-.artifacts/
 .dsh-build/
-.playwright-mcp/
-.orig
-.worktrees/
-worktrees/
-.agents/worktrees/
-.typert-*/
+
+# 临时
+*.log

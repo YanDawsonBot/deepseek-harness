@@ -101,6 +101,16 @@ export interface SubprocessSpawnSpec {
    * tombstone that removes an ordinary ambient entry from the child.
    */
   env?: NodeJS.ProcessEnv | undefined
+  /**
+   * Windows only: create the child WITHOUT a console window
+   * (CREATE_NO_WINDOW). The shell executor sets this for danger-full-access
+   * spawns, which bypass the sandbox runner and would otherwise make a
+   * windowless harness (e.g. PM2 windowsHide) mint a NEW VISIBLE console for
+   * the child on every call. Defaults to false (Node's spawn default): the
+   * confined runner path must keep its minted console so it can hide it for
+   * its own child.
+   */
+  windowsHide?: boolean | undefined
 }
 
 /**

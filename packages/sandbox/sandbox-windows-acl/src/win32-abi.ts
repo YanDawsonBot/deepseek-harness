@@ -17,9 +17,12 @@
  *    correct WinConsoleLogonSid does produce a valid S-1-2-1, but the child
  *    then still dies with STATUS_DLL_INIT_FAILED (0xC0000142) whenever
  *    CREATE_NO_WINDOW / CREATE_NEW_CONSOLE is used.
- *  - Console isolation: under this restriction scheme a hidden console is not
- *    attainable, so children share the host console (stdio redirection is
- *    pipe-based and unaffected).
+ *  - Console isolation: under this restriction scheme CREATE_NO_WINDOW /
+ *    CREATE_NEW_CONSOLE are not attainable, so children share the host
+ *    console (stdio redirection is pipe-based and unaffected). The runner
+ *    therefore HIDES its console window when the console was minted for it
+ *    alone (windowless harness), so confined children attach to a console
+ *    the user never sees instead of a visible window.
  * @module @deepseek-ai/dsh-sandbox-windows-acl/win32-abi
  */
 
@@ -156,6 +159,15 @@ export const STD_INPUT_HANDLE = -10
 export const STD_OUTPUT_HANDLE = -11
 /** STD_ERROR_HANDLE: GetStdHandle selector for the standard error. */
 export const STD_ERROR_HANDLE = -12
+// winuser.h: nCmdShow values passed to ShowWindow; SW_HIDE makes an existing
+// console window invisible (the runner's hidden-console allocation).
+/** SW_HIDE: hide the window without activating it. */
+export const SW_HIDE = 0
+// wincon.h: GetConsoleProcessList returns the number of processes attached to
+// the current console. A count of 1 — only this process — means the console
+// was minted for the runner (windowless harness), so the runner hides it.
+/** CONSOLE_PROCESS_LIST_CAPACITY: max PIDs to enumerate for the minted-console decision. */
+export const CONSOLE_PROCESS_LIST_CAPACITY = 64
 
 // FormatMessageW flags (winbase.h lines ~1446-1469)
 /** FORMAT_MESSAGE_FROM_SYSTEM: format the message from the system message table. */
